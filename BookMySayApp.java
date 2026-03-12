@@ -1,75 +1,79 @@
-import java.util.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Service responsible for rolling back state when a booking is cancelled.
- * Uses a Stack to manage released Room IDs for reuse.
+ * Simulates multiple users booking rooms simultaneously.
+ * Uses synchronization to prevent race conditions.
  */
-public class CancellationService {
+public class ConcurrentBookingProcessor {
     private RoomInventory inventory;
+    private BookingRequestQueue requestQueue;
     private BookingHistoryService history;
 
-    // Stack to keep track of recently released room IDs (LIFO)
-    private Stack<String> releasedRoomIDs;
-
-    public CancellationService(RoomInventory inventory, BookingHistoryService history) {
+    public ConcurrentBookingProcessor(RoomInventory inventory, BookingRequestQueue queue, BookingHistoryService history) {
         this.inventory = inventory;
+        this.requestQueue = queue;
         this.history = history;
-        this.releasedRoomIDs = new Stack<>();
     }
 
     /**
-     * Performs a controlled rollback of a booking.
-     * @param guestName Name of the guest cancelling
-     * @param roomType The type of room being returned
-     * @param roomID The specific ID being released
+     * The Critical Section: synchronized ensures only one thread
+     * enters this block at a time.
      */
-    public void cancelBooking(String guestName, String roomType, String roomID) {
-        System.out.println("\n--- Initiating Cancellation for: " + guestName + " ---");
+    public synchronized void processBookingSafely(Reservation request) {
+        String type = request.getRequestedRoomType();
 
-        // 1. Validation: In a real system, you'd check if this booking exists in History/DB
+        // Step 1: Check (If another thread is here, it must wait)
+        if (inventory.getAvailability(type) > 0) {
 
-        // 2. Increment Inventory (Inventory Restoration)
-        inventory.updateAvailability(roomType, 1);
+            // Artificial delay to simulate processing and expose race conditions
+            try { Thread.sleep(10); } catch (InterruptedException e) {}
 
-        // 3. Push the Room ID to the Stack (State Reversal)
-        releasedRoomIDs.push(roomID);
+            // Step 2: Act (Decrement and Record)
+            inventory.updateAvailability(type, -1);
+            history.recordBooking(request.getGuestName(), "CONFIRMED-" + type);
 
-        System.out.println("SUCCESS: Room " + roomID + " returned to " + roomType + " inventory.");
-        System.out.println("Current Stack of available IDs for reuse: " + releasedRoomIDs);
-    }
+            System.out.println("[Thread " + Thread.currentThread().getId() + "] SUCCESS: " + request.getGuestName());
+        } else {
+            System.out.println("[Thread " + Thread.currentThread().getId() + "] FAILED: No stock for " + request.getGuestName());
+        }
 
-
-    public String getRecentlyReleasedID() {
-        return releasedRoomIDs.isEmpty() ? null : releasedRoomIDs.pop();
     }
 }
 
 public class HotelBookingApp {
-    public static void main(String[] args) {
-        System.out.println("=== Hotel Booking Management System v1.9 ===\n");
 
-        // Setup
+    public static void main(String[] args) throws InterruptedException {
+        System.out.println("=== UC11: Concurrent Booking Simulation ===\n");
+
+        // 1. Setup shared resources (only 2 rooms available)
         RoomInventory inventory = new RoomInventory();
-        inventory.addRoomType("Suite Room", 1);
+        inventory.addRoomType("Suite Room", 2);
 
         BookingHistoryService history = new BookingHistoryService();
-        BookingRequestQueue queue = new BookingRequestQueue();
-        queue.enqueueRequest(new Reservation("Alice", "Suite Room"));
+        ConcurrentBookingProcessor processor = new ConcurrentBookingProcessor(inventory, null, history);
 
-        BookingService bookingService = new BookingService(inventory, queue);
+        // 2. Create 5 Guest Requests (Competing for 2 rooms)
+        String[] guests = {"Alice", "Bob", "Charlie", "David", "Eve"};
+        List<Thread> threads = new ArrayList<>();
 
-        // 1. Process Booking
-        bookingService.processAllRequests(history);
-        System.out.println("Inventory after booking: " + inventory.getAvailability("Suite Room"));
+        for (String name : guests) {
+            Reservation req = new Reservation(name, "Suite Room");
+            Thread t = new Thread(() -> {
+                processor.processBookingSafely(req);
+            });
+            threads.add(t);
+        }
 
-        // 2. Initialize Cancellation Service
-        CancellationService cancellationService = new CancellationService(inventory, history);
+        // 3. Start all threads "simultaneously"
+        for (Thread t : threads) t.start();
 
-        // 3. Alice cancels her booking
-        // In a real app, these values would be retrieved from the history/guest record
-        cancellationService.cancelBooking("Alice", "Suite Room", "S-101");
+        // 4. Wait for all threads to finish
+        for (Thread t : threads) t.join();
 
-        // 4. Verify Inventory Consistency
-        System.out.println("Inventory after cancellation: " + inventory.getAvailability("Suite Room"));
+        // 5. Verify consistency
+        System.out.println("\nFinal Inventory Count: " + inventory.getAvailability("Suite Room"));
+        history.generateFullReport();
     }
 }
