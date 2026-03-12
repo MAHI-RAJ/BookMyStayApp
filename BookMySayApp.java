@@ -51,6 +51,7 @@ public void processAllRequests(BookingHistoryService history) {
         } catch (BookingException e) {
             // Catching the error allows the loop to continue for the next guest
             System.err.println("VALIDATION FAILED: " + e.getMessage());
+
         }
     }
 }
