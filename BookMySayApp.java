@@ -38,6 +38,7 @@ public class CancellationService {
         System.out.println("Current Stack of available IDs for reuse: " + releasedRoomIDs);
     }
 
+
     public String getRecentlyReleasedID() {
         return releasedRoomIDs.isEmpty() ? null : releasedRoomIDs.pop();
     }
