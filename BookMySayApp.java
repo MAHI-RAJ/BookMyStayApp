@@ -1,6 +1,5 @@
 import java.util.List;
 import java.util.ArrayList;
-
 /**
  * Service responsible for read-only search operations.
  * It ensures that guests only see rooms that are currently in stock.
