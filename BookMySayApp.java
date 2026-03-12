@@ -73,5 +73,5 @@ public class HotelBookingApp {
 
         // Example of O(1) Lookup
         System.out.println("\nQuick Check - Suites left: " + inventoryManager.getAvailability("Suite Room"));
-    }
-}
+      
+ }
