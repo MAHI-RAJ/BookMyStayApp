@@ -1,76 +1,94 @@
-import java.util.List;
-import java.util.ArrayList;
+
 /**
- * Service responsible for read-only search operations.
- * It ensures that guests only see rooms that are currently in stock.
+ * Represents a guest's intent to book a room.
+ * This is a "Data Carrier" object used in the intake process.
  */
-public class RoomSearchService {
-    private RoomInventory inventory;
-    private List<Room> roomTemplates;
+public class Reservation {
+    private String guestName;
+    private String requestedRoomType;
 
-    public RoomSearchService(RoomInventory inventory, List<Room> roomTemplates) {
-        this.inventory = inventory;
-        this.roomTemplates = roomTemplates;
+    public Reservation(String guestName, String requestedRoomType) {
+        this.guestName = guestName;
+        this.requestedRoomType = requestedRoomType;
     }
 
-    /**
-     * Searches for available rooms.
-     * This method is "Pure"—it does not modify any variables or state.
-     */
-    public void searchAvailableRooms() {
-        System.out.println("\n--- Available Rooms for Booking ---");
-        boolean found = false;
+    public String getGuestName() { return guestName; }
+    public String getRequestedRoomType() { return requestedRoomType; }
 
-        for (Room room : roomTemplates) {
-            int availableCount = inventory.getAvailability(room.getRoomType());
-
-            // Validation Logic: Only show rooms with stock > 0
-            if (availableCount > 0) {
-                displayRoomOption(room, availableCount);
-                found = true;
-            }
-        }
-
-        if (!found) {
-            System.out.println("Sorry, no rooms are currently available.");
-        }
-    }
-
-    private void displayRoomOption(Room room, int count) {
-        System.out.println("[" + room.getRoomType() + "]");
-        System.out.println("  Price per Night: $" + room.getPricePerNight());
-        System.out.println("  Beds: " + room.getNumBeds());
-        System.out.println("  In Stock: " + count);
-        room.displayRoomFeatures();
-        System.out.println("----------------------------------");
+    @Override
+    public String toString() {
+        return "Request [Guest: " + guestName + ", Room: " + requestedRoomType + "]";
     }
 }
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.LinkedList;
+import java.util.Queue;
+
+/**
+ * Manages incoming booking requests using a FIFO Queue.
+ * Ensures fairness and order preservation.
+ */
+public class BookingRequestQueue {
+    private Queue<Reservation> requestQueue;
+
+    public BookingRequestQueue() {
+        // LinkedList is a standard implementation of the Queue interface
+        this.requestQueue = new LinkedList<>();
+    }
+
+    /**
+     * Adds a new booking request to the end of the line.
+     */
+    public void enqueueRequest(Reservation reservation) {
+        requestQueue.add(reservation);
+        System.out.println("Enqueued: " + reservation.getGuestName() + " for " + reservation.getRequestedRoomType());
+    }
+
+    /**
+     * Views the next request in line without removing it.
+     */
+    public Reservation peekNextRequest() {
+        return requestQueue.peek();
+    }
+
+    /**
+     * Removes and returns the first request in line for processing.
+     */
+    public Reservation dequeueNextRequest() {
+        return requestQueue.poll();
+    }
+
+    public void displayQueueStatus() {
+        System.out.println("\n--- Current Booking Queue ---");
+        if (requestQueue.isEmpty()) {
+            System.out.println("No pending requests.");
+        } else {
+            requestQueue.forEach(System.out::println);
+        }
+        System.out.println("------------------------------");
+    }
+
+    public boolean isEmpty() {
+        return requestQueue.isEmpty();
+    }
+}
 
 public class HotelBookingApp {
     public static void main(String[] args) {
-        System.out.println("=== Hotel Booking Management System v1.3 ===\n");
+        System.out.println("=== Hotel Booking Management System v1.4 ===\n");
 
-        // 1. Initialize Inventory
-        RoomInventory inventoryManager = new RoomInventory();
-        inventoryManager.addRoomType("Single Room", 5);
-        inventoryManager.addRoomType("Double Room", 0); // Out of stock!
-        inventoryManager.addRoomType("Suite Room", 2);
+        // Initialize our Intake Queue
+        BookingRequestQueue intake = new BookingRequestQueue();
 
-        // 2. Create Room Templates (Domain Models)
-        List<Room> roomTemplates = Arrays.asList(
-                new SingleRoom(),
-                new DoubleRoom(),
-                new SuiteRoom()
-        );
+        // Simulate guests arriving at the desk in a specific order
+        intake.enqueueRequest(new Reservation("Alice", "Suite Room"));
+        intake.enqueueRequest(new Reservation("Bob", "Single Room"));
+        intake.enqueueRequest(new Reservation("Charlie", "Suite Room"));
 
-        // 3. Initialize Search Service
-        RoomSearchService searchService = new RoomSearchService(inventoryManager, roomTemplates);
+        // Display the line (Arrival order: Alice -> Bob -> Charlie)
+        intake.displayQueueStatus();
 
-        // 4. Guest triggers a search
-        System.out.println("Guest is searching for available rooms...");
-        searchService.searchAvailableRooms();
+        // Preview the person at the front of the line
+        System.out.println("Next to be processed: " + intake.peekNextRequest());
     }
 }
