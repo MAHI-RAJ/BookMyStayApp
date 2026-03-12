@@ -1,6 +1,3 @@
-/**
- * Represents an optional service that can be added to a booking.
- */
 public class AddOnService {
     private String name;
     private double price;
