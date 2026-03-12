@@ -75,5 +75,6 @@ public class HotelBookingApp {
 
         // Final Inventory Check
         inventory.displayFullInventory();
+
     }
 }
