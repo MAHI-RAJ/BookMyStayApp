@@ -1,77 +1,76 @@
-
-import java.util.HashMap;
-import java.util.Map;
-
+import java.util.List;
+import java.util.ArrayList;
 /**
- * Manages the availability of different room types using a centralized HashMap.
- * Provides O(1) lookup and update complexity.
+ * Service responsible for read-only search operations.
+ * It ensures that guests only see rooms that are currently in stock.
  */
-public class RoomInventory {
-    // Key: Room Type Name, Value: Number of available rooms
-    private Map<String, Integer> inventory;
+public class RoomSearchService {
+    private RoomInventory inventory;
+    private List<Room> roomTemplates;
 
-    public RoomInventory() {
-        this.inventory = new HashMap<>();
+    public RoomSearchService(RoomInventory inventory, List<Room> roomTemplates) {
+        this.inventory = inventory;
+        this.roomTemplates = roomTemplates;
     }
 
     /**
-     * Registers a room type and sets its initial stock.
+     * Searches for available rooms.
+     * This method is "Pure"—it does not modify any variables or state.
      */
-    public void addRoomType(String roomType, int initialCount) {
-        inventory.put(roomType, initialCount);
-    }
+    public void searchAvailableRooms() {
+        System.out.println("\n--- Available Rooms for Booking ---");
+        boolean found = false;
 
-    /**
-     * Retrieves current availability for a specific room type.
-     * Uses getOrDefault to prevent NullPointerExceptions if a type doesn't exist.
-     */
-    public int getAvailability(String roomType) {
-        return inventory.getOrDefault(roomType, 0);
-    }
+        for (Room room : roomTemplates) {
+            int availableCount = inventory.getAvailability(room.getRoomType());
 
-    /**
-     * Updates availability (e.g., after a booking or cancellation).
-     * @return true if update was successful, false if insufficient stock.
-     */
-    public boolean updateAvailability(String roomType, int change) {
-        int current = getAvailability(roomType);
-        if (current + change < 0) {
-            return false; // Cannot have negative rooms
+            // Validation Logic: Only show rooms with stock > 0
+            if (availableCount > 0) {
+                displayRoomOption(room, availableCount);
+                found = true;
+            }
         }
-        inventory.put(roomType, current + change);
-        return true;
+
+        if (!found) {
+            System.out.println("Sorry, no rooms are currently available.");
+        }
     }
 
-    public void displayFullInventory() {
-        System.out.println("\n--- Current Inventory Status ---");
-        for (Map.Entry<String, Integer> entry : inventory.entrySet()) {
-            System.out.printf("%-15s : %d rooms available\n", entry.getKey(), entry.getValue());
-        }
+    private void displayRoomOption(Room room, int count) {
+        System.out.println("[" + room.getRoomType() + "]");
+        System.out.println("  Price per Night: $" + room.getPricePerNight());
+        System.out.println("  Beds: " + room.getNumBeds());
+        System.out.println("  In Stock: " + count);
+        room.displayRoomFeatures();
+        System.out.println("----------------------------------");
     }
 }
 
+import java.util.Arrays;
+import java.util.List;
+
 public class HotelBookingApp {
     public static void main(String[] args) {
-        System.out.println("=== Hotel Booking Management System v1.2 ===\n");
+        System.out.println("=== Hotel Booking Management System v1.3 ===\n");
 
-        // Step 1: Initialize the Centralized Inventory
+        // 1. Initialize Inventory
         RoomInventory inventoryManager = new RoomInventory();
-
-        // Step 2: Register Room Types (Scalable!)
-        inventoryManager.addRoomType("Single Room", 10);
-        inventoryManager.addRoomType("Double Room", 5);
+        inventoryManager.addRoomType("Single Room", 5);
+        inventoryManager.addRoomType("Double Room", 0); // Out of stock!
         inventoryManager.addRoomType("Suite Room", 2);
 
-        // Step 3: Simulate a booking
-        System.out.println("Booking 1 Single Room...");
-        if(inventoryManager.updateAvailability("Single Room", -1)) {
-            System.out.println("Booking successful!");
-        }
+        // 2. Create Room Templates (Domain Models)
+        List<Room> roomTemplates = Arrays.asList(
+                new SingleRoom(),
+                new DoubleRoom(),
+                new SuiteRoom()
+        );
 
-        // Step 4: Display results
-        inventoryManager.displayFullInventory();
+        // 3. Initialize Search Service
+        RoomSearchService searchService = new RoomSearchService(inventoryManager, roomTemplates);
 
-        // Example of O(1) Lookup
-        System.out.println("\nQuick Check - Suites left: " + inventoryManager.getAvailability("Suite Room"));
-      
- }
+        // 4. Guest triggers a search
+        System.out.println("Guest is searching for available rooms...");
+        searchService.searchAvailableRooms();
+    }
+}
