@@ -1,89 +1,88 @@
-public class AddOnService {
-    private String name;
-    private double price;
 
-    public AddOnService(String name, double price) {
-        this.name = name;
-        this.price = price;
-    }
-
-    public String getName() { return name; }
-    public double getPrice() { return price; }
-
-    @Override
-    public String toString() {
-        return name + " ($" + price + ")";
-    }
-}
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Manages the association between Reservations and their Add-On services.
+ * Maintains a historical record of all confirmed reservations.
+ * Provides reporting capabilities for administrators.
  */
-public class ServiceManager {
-    // Key: RoomID (from confirmed booking), Value: List of services selected
-    private Map<String, List<AddOnService>> bookingServices;
+public class BookingHistoryService {
+    // A List is perfect for a chronological audit trail
+    private List<String> confirmedBookings;
 
-    public ServiceManager() {
-        this.bookingServices = new HashMap<>();
+    public BookingHistoryService() {
+        this.confirmedBookings = new ArrayList<>();
     }
 
     /**
-     * Attaches a service to a specific room allocation.
+     * Records a successful transaction into history.
      */
-    public void addServiceToBooking(String roomID, AddOnService service) {
-        bookingServices.computeIfAbsent(roomID, k -> new ArrayList<>()).add(service);
-        System.out.println("Added " + service.getName() + " to Booking " + roomID);
+    public void recordBooking(String guestName, String roomID) {
+        String record = String.format("Guest: %-10s | Room: %-10s", guestName, roomID);
+        confirmedBookings.add(record);
     }
 
     /**
-     * Calculates the total cost of all add-ons for a specific booking.
+     * Generates a summary report for the Admin.
+     * This is a read-only operation.
      */
-    public double calculateAddOnTotal(String roomID) {
-        List<AddOnService> services = bookingServices.get(roomID);
-        if (services == null) return 0.0;
-
-        return services.stream()
-                .mapToDouble(AddOnService::getPrice)
-                .sum();
-    }
-
-    public void displayServicesForBooking(String roomID) {
-        List<AddOnService> services = bookingServices.getOrDefault(roomID, new ArrayList<>());
-        if (services.isEmpty()) {
-            System.out.println("No add-on services for " + roomID);
+    public void generateFullReport() {
+        System.out.println("\n========= ADMINISTRATIVE BOOKING REPORT =========");
+        if (confirmedBookings.isEmpty()) {
+            System.out.println("No history found for the current session.");
         } else {
-            System.out.println("Services for " + roomID + ": " + services);
+            System.out.println("Total Confirmed Bookings: " + confirmedBookings.size());
+            System.out.println("-------------------------------------------------");
+            for (int i = 0; i < confirmedBookings.size(); i++) {
+                System.out.println((i + 1) + ". " + confirmedBookings.get(i));
+            }
+        }
+        System.out.println("=================================================");
+    }
+}
+
+// Inside BookingService.java (Modified)
+public void processAllRequests(BookingHistoryService history) {
+    while (!requestQueue.isEmpty()) {
+        Reservation request = requestQueue.dequeueNextRequest();
+        String type = request.getRequestedRoomType();
+
+        if (inventory.getAvailability(type) > 0) {
+            String roomID = generateRoomID(type);
+            allocateRoom(type, roomID);
+            inventory.updateAvailability(type, -1);
+
+            // NEW: Record the event in history for reporting
+            history.recordBooking(request.getGuestName(), roomID);
+
+            System.out.println("CONFIRMED: " + request.getGuestName() + " -> " + roomID);
+        } else {
+            System.out.println("FAILED: No stock for " + request.getGuestName());
+
         }
     }
 }
 
 public class HotelBookingApp {
     public static void main(String[] args) {
-        System.out.println("=== Hotel Booking Management System v1.6 ===\n");
+        System.out.println("=== Hotel Booking Management System v1.7 ===\n");
 
-        // 1. Setup existing components
+        // 1. Setup
         RoomInventory inventory = new RoomInventory();
-        inventory.addRoomType("Suite Room", 1);
+        inventory.addRoomType("Suite Room", 2);
+
         BookingRequestQueue queue = new BookingRequestQueue();
         queue.enqueueRequest(new Reservation("Alice", "Suite Room"));
+        queue.enqueueRequest(new Reservation("Bob", "Suite Room"));
 
+        BookingHistoryService history = new BookingHistoryService();
         BookingService bookingService = new BookingService(inventory, queue);
-        ServiceManager serviceManager = new ServiceManager();
 
-        // 2. Process Booking to get a Room ID (e.g., S-101)
-        bookingService.processAllRequests();
-        String aliceRoomID = "S-101"; // Generated in the previous step
+        // 2. Process
+        bookingService.processAllRequests(history);
 
-        // 3. Guest selects Add-Ons
-        AddOnService breakfast = new AddOnService("Buffet Breakfast", 25.0);
-        AddOnService spa = new AddOnService("Spa Treatment", 120.0);
+        // 3. Admin generates report at the end of the day
+        history.generateFullReport();
 
-        serviceManager.addServiceToBooking(aliceRoomID, breakfast);
-        serviceManager.addServiceToBooking(aliceRoomID, spa);
-
-        // 4. Final summary
-        serviceManager.displayServicesForBooking(aliceRoomID);
-        System.out.println("Total Add-on Cost: $" + serviceManager.calculateAddOnTotal(aliceRoomID));
     }
 }
