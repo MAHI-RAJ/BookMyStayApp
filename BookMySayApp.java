@@ -1,3 +1,4 @@
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,10 +38,12 @@ public class ConcurrentBookingProcessor {
         } else {
             System.out.println("[Thread " + Thread.currentThread().getId() + "] FAILED: No stock for " + request.getGuestName());
         }
+
     }
 }
 
 public class HotelBookingApp {
+
     public static void main(String[] args) throws InterruptedException {
         System.out.println("=== UC11: Concurrent Booking Simulation ===\n");
 
