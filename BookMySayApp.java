@@ -1,63 +1,56 @@
-
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * Maintains a historical record of all confirmed reservations.
- * Provides reporting capabilities for administrators.
+ * Custom exception for domain-specific booking errors.
  */
-public class BookingHistoryService {
-    // A List is perfect for a chronological audit trail
-    private List<String> confirmedBookings;
-
-    public BookingHistoryService() {
-        this.confirmedBookings = new ArrayList<>();
-    }
-
-    /**
-     * Records a successful transaction into history.
-     */
-    public void recordBooking(String guestName, String roomID) {
-        String record = String.format("Guest: %-10s | Room: %-10s", guestName, roomID);
-        confirmedBookings.add(record);
-    }
-
-    /**
-     * Generates a summary report for the Admin.
-     * This is a read-only operation.
-     */
-    public void generateFullReport() {
-        System.out.println("\n========= ADMINISTRATIVE BOOKING REPORT =========");
-        if (confirmedBookings.isEmpty()) {
-            System.out.println("No history found for the current session.");
-        } else {
-            System.out.println("Total Confirmed Bookings: " + confirmedBookings.size());
-            System.out.println("-------------------------------------------------");
-            for (int i = 0; i < confirmedBookings.size(); i++) {
-                System.out.println((i + 1) + ". " + confirmedBookings.get(i));
-            }
-        }
-        System.out.println("=================================================");
+public class BookingException extends Exception {
+    public BookingException(String message) {
+        super(message);
     }
 }
 
-// Inside BookingService.java (Modified)
+/**
+ * Ensures that booking requests are valid before they reach the core logic.
+ */
+public class BookingValidator {
+
+    public static void validateRequest(Reservation request, RoomInventory inventory) throws BookingException {
+        // 1. Validate Input
+        if (request.getGuestName() == null || request.getGuestName().trim().isEmpty()) {
+            throw new BookingException("Invalid Guest Name: Name cannot be empty.");
+        }
+
+        // 2. Validate Room Type Existence
+        int currentStock = inventory.getAvailability(request.getRequestedRoomType());
+        if (currentStock == -1) { // Assuming -1 means type doesn't exist in map
+            throw new BookingException("Room Type Error: '" + request.getRequestedRoomType() + "' does not exist.");
+        }
+
+        // 3. Validate Inventory Availability (Fail-Fast)
+        if (currentStock <= 0) {
+            throw new BookingException("Inventory Error: No " + request.getRequestedRoomType() + "s available.");
+        }
+    }
+}
+
 public void processAllRequests(BookingHistoryService history) {
+    System.out.println("\n--- Processing Requests with Validation ---");
+
     while (!requestQueue.isEmpty()) {
         Reservation request = requestQueue.dequeueNextRequest();
-        String type = request.getRequestedRoomType();
 
-        if (inventory.getAvailability(type) > 0) {
-            String roomID = generateRoomID(type);
-            allocateRoom(type, roomID);
-            inventory.updateAvailability(type, -1);
+        try {
+            // Validate before any mutation happens
+            BookingValidator.validateRequest(request, inventory);
 
-            // NEW: Record the event in history for reporting
+            // If we reach here, validation passed
+            String roomID = generateRoomID(request.getRequestedRoomType());
+            inventory.updateAvailability(request.getRequestedRoomType(), -1);
             history.recordBooking(request.getGuestName(), roomID);
 
-            System.out.println("CONFIRMED: " + request.getGuestName() + " -> " + roomID);
-        } else {
-            System.out.println("FAILED: No stock for " + request.getGuestName());
+            System.out.println("SUCCESS: Confirmed " + request.getGuestName());
+
+        } catch (BookingException e) {
+            // Catching the error allows the loop to continue for the next guest
+            System.err.println("VALIDATION FAILED: " + e.getMessage());
 
         }
     }
@@ -65,24 +58,27 @@ public void processAllRequests(BookingHistoryService history) {
 
 public class HotelBookingApp {
     public static void main(String[] args) {
-        System.out.println("=== Hotel Booking Management System v1.7 ===\n");
+        System.out.println("=== Hotel Booking Management System v1.8 ===\n");
 
-        // 1. Setup
         RoomInventory inventory = new RoomInventory();
-        inventory.addRoomType("Suite Room", 2);
+        inventory.addRoomType("Single Room", 1);
 
         BookingRequestQueue queue = new BookingRequestQueue();
-        queue.enqueueRequest(new Reservation("Alice", "Suite Room"));
-        queue.enqueueRequest(new Reservation("Bob", "Suite Room"));
 
+        // Scenario A: Valid request
+        queue.enqueueRequest(new Reservation("Alice", "Single Room"));
+
+        // Scenario B: Room type doesn't exist (should trigger error)
+        queue.enqueueRequest(new Reservation("Bob", "Penthouse"));
+
+        // Scenario C: Empty name (should trigger error)
+        queue.enqueueRequest(new Reservation("", "Single Room"));
+
+        BookingService service = new BookingService(inventory, queue);
         BookingHistoryService history = new BookingHistoryService();
-        BookingService bookingService = new BookingService(inventory, queue);
 
-        // 2. Process
-        bookingService.processAllRequests(history);
+        service.processAllRequests(history);
 
-        // 3. Admin generates report at the end of the day
-        history.generateFullReport();
-
+        System.out.println("\nSystem remains stable after processing errors.");
     }
 }
