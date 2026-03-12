@@ -1,3 +1,4 @@
+
 /**
  * Represents a guest's intent to book a room.
  * This is a "Data Carrier" object used in the intake process.
