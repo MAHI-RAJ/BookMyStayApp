@@ -1,3 +1,4 @@
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,6 +58,7 @@ public void processAllRequests(BookingHistoryService history) {
             System.out.println("CONFIRMED: " + request.getGuestName() + " -> " + roomID);
         } else {
             System.out.println("FAILED: No stock for " + request.getGuestName());
+
         }
     }
 }
@@ -81,5 +83,6 @@ public class HotelBookingApp {
 
         // 3. Admin generates report at the end of the day
         history.generateFullReport();
+
     }
 }
