@@ -1,3 +1,4 @@
+
 import java.io.*;
 import java.util.*;
 
@@ -68,9 +69,5 @@ public class UseCase12DataPersistenceRecovery {
 
     private void initializeDefaultInventory() {
         for (int i = 101; i <= 110; i++) inventory.put(i, true);
-    }
-
-    private void processSampleBookings() {
-        // Logic for adding bookings goes here...
     }
 }
