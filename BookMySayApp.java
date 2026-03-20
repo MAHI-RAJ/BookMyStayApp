@@ -1,79 +1,73 @@
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.util.*;
 
-/**
- * Simulates multiple users booking rooms simultaneously.
- * Uses synchronization to prevent race conditions.
- */
-public class ConcurrentBookingProcessor {
-    private RoomInventory inventory;
-    private BookingRequestQueue requestQueue;
-    private BookingHistoryService history;
+// 1. Ensure your core classes are Serializable
+class Booking implements Serializable {
+    private static final long serialVersionUID = 1L;
+    String guestName;
+    int roomNumber;
+    // Constructor and getters...
+}
 
-    public ConcurrentBookingProcessor(RoomInventory inventory, BookingRequestQueue queue, BookingHistoryService history) {
-        this.inventory = inventory;
-        this.requestQueue = queue;
-        this.history = history;
+public class UseCase12DataPersistenceRecovery {
+    private static final String STORAGE_FILE = "hotel_state.ser";
+    private Map<Integer, Boolean> inventory = new HashMap<>();
+    private List<Booking> bookingHistory = new ArrayList<>();
+
+    public static void main(String[] args) {
+        UseCase12DataPersistenceRecovery app = new UseCase12DataPersistenceRecovery();
+
+        // STEP 1: Startup Recovery
+        app.loadSystemState();
+
+        // Simulate app operations...
+        app.processSampleBookings();
+
+        // STEP 2: Shutdown Persistence
+        app.saveSystemState();
     }
 
     /**
-     * The Critical Section: synchronized ensures only one thread
-     * enters this block at a time.
+     * SERIALIZATION: Writing objects to a file
      */
-    public synchronized void processBookingSafely(Reservation request) {
-        String type = request.getRequestedRoomType();
-
-        // Step 1: Check (If another thread is here, it must wait)
-        if (inventory.getAvailability(type) > 0) {
-
-            // Artificial delay to simulate processing and expose race conditions
-            try { Thread.sleep(10); } catch (InterruptedException e) {}
-
-            // Step 2: Act (Decrement and Record)
-            inventory.updateAvailability(type, -1);
-            history.recordBooking(request.getGuestName(), "CONFIRMED-" + type);
-
-            System.out.println("[Thread " + Thread.currentThread().getId() + "] SUCCESS: " + request.getGuestName());
-        } else {
-            System.out.println("[Thread " + Thread.currentThread().getId() + "] FAILED: No stock for " + request.getGuestName());
+    public void saveSystemState() {
+        System.out.println("System preparing for shutdown. Serializing state...");
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(STORAGE_FILE))) {
+            oos.writeObject(inventory);
+            oos.writeObject(bookingHistory);
+            System.out.println("Data successfully saved to " + STORAGE_FILE);
+        } catch (IOException e) {
+            System.err.println("Error saving state: " + e.getMessage());
         }
-
     }
-}
 
-public class HotelBookingApp {
+    /**
+     * DESERIALIZATION: Restoring objects from a file
+     */
+    @SuppressWarnings("unchecked")
+    public void loadSystemState() {
+        File file = new File(STORAGE_FILE);
 
-    public static void main(String[] args) throws InterruptedException {
-        System.out.println("=== UC11: Concurrent Booking Simulation ===\n");
-
-        // 1. Setup shared resources (only 2 rooms available)
-        RoomInventory inventory = new RoomInventory();
-        inventory.addRoomType("Suite Room", 2);
-
-        BookingHistoryService history = new BookingHistoryService();
-        ConcurrentBookingProcessor processor = new ConcurrentBookingProcessor(inventory, null, history);
-
-        // 2. Create 5 Guest Requests (Competing for 2 rooms)
-        String[] guests = {"Alice", "Bob", "Charlie", "David", "Eve"};
-        List<Thread> threads = new ArrayList<>();
-
-        for (String name : guests) {
-            Reservation req = new Reservation(name, "Suite Room");
-            Thread t = new Thread(() -> {
-                processor.processBookingSafely(req);
-            });
-            threads.add(t);
+        // FAILURE TOLERANCE: Handle missing files gracefully
+        if (!file.exists()) {
+            System.out.println("No persistence file found. Initializing fresh system state.");
+            initializeDefaultInventory();
+            return;
         }
 
-        // 3. Start all threads "simultaneously"
-        for (Thread t : threads) t.start();
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(STORAGE_FILE))) {
+            inventory = (Map<Integer, Boolean>) ois.readObject();
+            bookingHistory = (List<Booking>) ois.readObject();
+            System.out.println("System state recovered successfully. Records loaded.");
+        } catch (IOException | ClassNotFoundException e) {
+            // FAILURE TOLERANCE: Handle corrupted data
+            System.err.println("Critical Error: Persisted data is corrupted. Starting with default state.");
+            initializeDefaultInventory();
+        }
+    }
 
-        // 4. Wait for all threads to finish
-        for (Thread t : threads) t.join();
-
-        // 5. Verify consistency
-        System.out.println("\nFinal Inventory Count: " + inventory.getAvailability("Suite Room"));
-        history.generateFullReport();
+    private void initializeDefaultInventory() {
+        for (int i = 101; i <= 110; i++) inventory.put(i, true);
     }
 }
